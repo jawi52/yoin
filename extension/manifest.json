@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Yoin - YouTube Downloader Helper",
+  "version": "1.0",
+  "description": "One-click YouTube video and audio downloader powered by local Yoin server.",
+  "permissions": [
+    "activeTab"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "https://*.youtube.com/*",
+    "https://*.youtu.be/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": "icon.png"
+  },
+  "icons": {
+    "16": "icon.png",
+    "48": "icon.png",
+    "128": "icon.png"
+  }
+}

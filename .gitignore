@@ -1,0 +1,10 @@
+# Exclude downloads and temporary files
+downloads/
+*.zip
+*.pyc
+__pycache__/
+.venv/
+.idea/
+.vscode/
+downloads_history.json
+setup_guide.txt
