@@ -157,6 +157,10 @@ def heartbeat():
 
 async def monitor_heartbeat():
     global last_heartbeat_time, has_received_heartbeat
+    # Only run auto-shutdown if explicitly enabled for local desktop mode
+    if os.getenv("ENABLE_AUTO_SHUTDOWN", "false").lower() != "true":
+        return
+
     # Grace period on startup (45 seconds) to allow the browser to start and connect
     await asyncio.sleep(45)
     while True:

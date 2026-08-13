@@ -75,6 +75,7 @@ echo [2/3] Starting web browser...
 start http://localhost:8000
 
 :start_server
+set ENABLE_AUTO_SHUTDOWN=true
 echo [3/3] Launching FastAPI local server...
 echo Server starting at http://127.0.0.1:8000
 if not "%1"=="--background" (
