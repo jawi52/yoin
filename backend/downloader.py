@@ -37,7 +37,7 @@ class DownloadManager:
             'skip_download': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web', 'mweb', 'ios']
+                    'player_client': ['ios', 'android', 'mweb']
                 }
             }
         }
@@ -298,7 +298,7 @@ class DownloadManager:
             'windowsfilenames': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web', 'mweb', 'ios']
+                    'player_client': ['ios', 'android', 'mweb']
                 }
             }
         }
