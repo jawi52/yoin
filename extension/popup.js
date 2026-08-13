@@ -1,4 +1,4 @@
-let SERVER_URL = localStorage.getItem('yoin_server_url') || 'http://localhost:8000';
+let SERVER_URL = localStorage.getItem('yoin_server_url') || 'https://yoin.eu.cc';
 let activeVideoUrl = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
