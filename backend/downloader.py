@@ -35,11 +35,6 @@ class DownloadManager:
         ydl_opts = {
             'extract_flat': 'in_playlist',  # Faster playlist loading
             'skip_download': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'mweb', 'ios', 'web']
-                }
-            }
         }
         cookie_file = os.path.join(str(BASE_DIR), 'cookies.txt')
         if os.path.exists(cookie_file):
@@ -81,26 +76,32 @@ class DownloadManager:
             if best_audio_size == 0:
                 best_audio_size = 10 * 1024 * 1024
 
-            # Group video formats by height
-            heights_seen = set()
+            # Group video formats by effective resolution
+            res_seen = set()
             video_formats = []
             
             for f in formats_list:
                 height = f.get("height")
+                width = f.get("width")
                 vcodec = f.get("vcodec")
                 
-                if height and vcodec != "none" and height not in heights_seen:
-                    heights_seen.add(height)
+                if height and vcodec != "none" and f.get("ext") != "mhtml":
+                    # Normalize horizontal vs vertical video resolutions (e.g. 1080p for 1920x1080 or 1080x1920)
+                    eff_res = min(height, width) if (height and width) else height
                     
-                    # Estimate size
-                    v_size = f.get("filesize") or f.get("filesize_approx") or 0
-                    total_size = v_size + best_audio_size if v_size > 0 else 0
-                    
-                    video_formats.append({
-                        "height": height,
-                        "ext": "mp4",  # yt-dlp will merge to mp4 by default
-                        "size": total_size
-                    })
+                    if eff_res > 180 and eff_res not in res_seen:
+                        res_seen.add(eff_res)
+                        
+                        # Estimate size
+                        v_size = f.get("filesize") or f.get("filesize_approx") or 0
+                        total_size = v_size + best_audio_size if v_size > 0 else 0
+                        
+                        video_formats.append({
+                            "height": eff_res,
+                            "raw_height": height,
+                            "ext": "mp4",
+                            "size": total_size
+                        })
 
             # Sort formats from high resolution to low
             video_formats.sort(key=lambda x: x["height"], reverse=True)
@@ -108,6 +109,7 @@ class DownloadManager:
             # Standard formats display list
             for vf in video_formats:
                 h = vf["height"]
+                raw_h = vf["raw_height"]
                 size_str = self._format_size(vf["size"]) if vf["size"] > 0 else "Unknown size"
                 
                 # Assign user-friendly labels
@@ -124,7 +126,7 @@ class DownloadManager:
                     label += " HD"
                 
                 result["formats"].append({
-                    "id": f"height_{h}",
+                    "id": f"height_{raw_h}",
                     "name": label,
                     "ext": vf["ext"],
                     "filesize_str": size_str,
@@ -296,11 +298,6 @@ class DownloadManager:
             'progress_hooks': [progress_hook],
             'restrictfilenames': False,
             'windowsfilenames': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'mweb', 'ios', 'web']
-                }
-            }
         }
         cookie_file = os.path.join(str(BASE_DIR), 'cookies.txt')
         if os.path.exists(cookie_file):
