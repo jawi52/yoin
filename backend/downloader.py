@@ -36,8 +36,8 @@ class DownloadManager:
             'remote_components': ['ejs:github'],
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['web', 'mweb', 'android'],
-                    'player_skip': ['configs'],
+                    'player_client': ['web_embedded', 'android', 'ios', 'mweb'],
+                    'player_skip': ['configs', 'webpage'],
                 }
             },
             'http_headers': {
