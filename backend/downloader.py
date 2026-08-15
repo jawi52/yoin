@@ -30,15 +30,50 @@ class DownloadManager:
     def __init__(self):
         self.tasks: Dict[str, DownloadTask] = {}
 
+    def _get_common_ydl_opts(self) -> Dict[str, Any]:
+        """Provides robust options for YouTube downloads across local and cloud environments."""
+        opts = {
+            'remote_components': ['ejs:github'],
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web', 'mweb', 'android'],
+                    'player_skip': ['configs'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+            },
+            'nocheckcertificate': True,
+            'geo_bypass': True,
+            'socket_timeout': 30,
+            'retries': 10,
+            'fragment_retries': 10,
+            'quiet': False,
+        }
+
+        # Check for cookies file or environment variable
+        cookie_file = os.path.join(str(BASE_DIR), 'cookies.txt')
+        cookies_env = os.getenv('YOUTUBE_COOKIES')
+        if cookies_env and not os.path.exists(cookie_file):
+            try:
+                with open(cookie_file, 'w', encoding='utf-8') as f:
+                    f.write(cookies_env)
+            except Exception:
+                pass
+
+        if os.path.exists(cookie_file):
+            opts['cookiefile'] = cookie_file
+
+        return opts
+
     def fetch_info(self, url: str) -> Dict[str, Any]:
         """Extracts info from the URL without downloading."""
-        ydl_opts = {
+        ydl_opts = self._get_common_ydl_opts()
+        ydl_opts.update({
             'extract_flat': 'in_playlist',  # Faster playlist loading
             'skip_download': True,
-        }
-        cookie_file = os.path.join(str(BASE_DIR), 'cookies.txt')
-        if os.path.exists(cookie_file):
-            ydl_opts['cookiefile'] = cookie_file
+        })
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             try:
@@ -293,15 +328,13 @@ class DownloadManager:
                 loop.call_soon_threadsafe(task.queue.put_nowait, data)
 
         # Setup yt-dlp options
-        ydl_opts = {
+        ydl_opts = self._get_common_ydl_opts()
+        ydl_opts.update({
             'outtmpl': os.path.join(str(DOWNLOADS_DIR), '%(title)s.%(ext)s'),
             'progress_hooks': [progress_hook],
             'restrictfilenames': False,
             'windowsfilenames': True,
-        }
-        cookie_file = os.path.join(str(BASE_DIR), 'cookies.txt')
-        if os.path.exists(cookie_file):
-            ydl_opts['cookiefile'] = cookie_file
+        })
 
         # Format Selection Logic
         if task.audio_only:
@@ -326,7 +359,7 @@ class DownloadManager:
                 try:
                     h = int(task.resolution.split("_")[1])
                     ydl_opts.update({
-                        'format': f'bestvideo[height<={h}]+bestaudio/best',
+                        'format': f'bestvideo[height<={h}]+bestaudio/best[height<={h}]/best',
                         'merge_output_format': 'mp4',
                     })
                 except Exception:

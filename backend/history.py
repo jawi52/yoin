@@ -18,7 +18,12 @@ def load_history() -> List[Dict[str, Any]]:
     # Verify file existence dynamically
     for item in history:
         filepath = item.get("filepath", "")
-        item["file_exists"] = os.path.exists(filepath) if filepath else False
+        if filepath and os.path.exists(filepath):
+            item["file_exists"] = True
+        else:
+            filename = item.get("filename", "")
+            alt_path = DOWNLOADS_DIR / filename if filename else None
+            item["file_exists"] = (alt_path.exists() and alt_path.is_file()) if alt_path else False
         
     return history
 

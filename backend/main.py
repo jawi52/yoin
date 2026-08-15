@@ -8,7 +8,7 @@ import time
 import signal
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, BackgroundTasks
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -130,19 +130,37 @@ def delete_history_item(item_id: str, delete_file: bool = Query(False, descripti
         raise HTTPException(status_code=404, detail="History item not found")
     return {"success": True}
 
+@app.get("/api/download/file/{filename}")
+def download_file_attachment(filename: str):
+    """Securely streams the downloaded file with Content-Disposition: attachment for direct browser saving."""
+    safe_path = (DOWNLOADS_DIR / filename).resolve()
+    if not str(safe_path).startswith(str(DOWNLOADS_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+    if not safe_path.exists() or not safe_path.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+    return FileResponse(
+        path=str(safe_path),
+        filename=filename,
+        media_type="application/octet-stream"
+    )
+
 @app.post("/api/open-folder")
 def open_downloads_folder():
     try:
         dir_path = str(DOWNLOADS_DIR)
         if sys.platform == "win32":
             os.startfile(dir_path)
+            return {"success": True, "message": "Opened downloads folder"}
         elif sys.platform == "darwin":
             subprocess.Popen(["open", dir_path])
+            return {"success": True, "message": "Opened downloads folder"}
         else:
-            subprocess.Popen(["xdg-open", dir_path])
-        return {"success": True}
+            if shutil.which("xdg-open") and (os.getenv("DISPLAY") or os.getenv("WAYLAND_DISPLAY")):
+                subprocess.Popen(["xdg-open", dir_path])
+                return {"success": True, "message": "Opened downloads folder"}
+            return {"success": False, "message": "Folder opening is only available in local desktop mode"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to open folder: {str(e)}")
+        return {"success": False, "message": f"Could not open folder: {str(e)}"}
 
 last_heartbeat_time = time.time()
 server_started_time = time.time()

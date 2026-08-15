@@ -352,6 +352,11 @@ function connectProgressStream(taskId) {
             loadHistory();
             showToast(`Download Complete: ${taskDetails.title.substring(0, 30)}...`, "success");
             
+            // Automatically trigger browser download of the completed file
+            if (data.filename) {
+                triggerBrowserFileDownload(`/api/download/file/${encodeURIComponent(data.filename)}`, data.filename);
+            }
+            
             // Add to session completed list
             addToSessionCompletedList(taskDetails, data.filename);
         } else if (data.status === 'failed') {
@@ -522,14 +527,21 @@ function updateProgressCardDOM(taskId, data) {
         pEta.innerText = "";
         
         // Remove cancel button, since it finished
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         cancelBtn.parentElement.innerHTML = `
             <div class="flex flex-col sm:flex-row md:flex-col gap-2 w-full">
-                <button onclick="openDownloadsFolder()" class="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white transition-all active:scale-95 font-label-md text-sm flex items-center justify-center gap-1.5">
-                    <span class="material-symbols-outlined text-sm">folder</span> Show
-                </button>
-                <a href="/downloads/${encodeURIComponent(data.filename)}" download class="px-4 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-container-highest transition-all text-center font-label-md text-sm flex items-center justify-center gap-1.5">
-                    <span class="material-symbols-outlined text-sm">open_in_new</span> Save As
+                <a href="/api/download/file/${encodeURIComponent(data.filename)}" download="${encodeURIComponent(data.filename)}" class="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-on-primary transition-all active:scale-95 font-label-md text-sm flex items-center justify-center gap-1.5 shadow-md">
+                    <span class="material-symbols-outlined text-sm">download</span> Save File
                 </a>
+                ${isLocal ? `
+                <button onclick="openDownloadsFolder()" class="px-4 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-container-highest transition-all text-center font-label-md text-sm flex items-center justify-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">folder</span> Show Folder
+                </button>
+                ` : `
+                <a href="/downloads/${encodeURIComponent(data.filename)}" target="_blank" class="px-4 py-2 rounded-lg border border-outline-variant text-on-surface hover:bg-surface-container-highest transition-all text-center font-label-md text-sm flex items-center justify-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">play_arrow</span> Preview
+                </a>
+                `}
             </div>
         `;
     } else if (data.status === 'failed') {
@@ -666,7 +678,12 @@ function renderHistoryList(historyList) {
             <!-- Actions -->
             <div class="flex items-center gap-stack-sm">
                 ${playLinkHTML}
-                <button onclick="${item.file_exists ? 'openDownloadsFolder()' : ''}" class="p-stack-sm rounded-lg border border-outline-variant ${openBtnClass} transition-all active:scale-95 flex items-center justify-center" title="Open in explorer">
+                ${item.file_exists ? `
+                <a href="/api/download/file/${encodeURIComponent(item.filename)}" download="${encodeURIComponent(item.filename)}" class="p-stack-sm rounded-lg border border-outline-variant text-primary hover:bg-primary/10 transition-all active:scale-95 flex items-center justify-center" title="Download to device">
+                    <span class="material-symbols-outlined text-base">download</span>
+                </a>
+                ` : ''}
+                <button onclick="${item.file_exists ? 'openDownloadsFolder()' : ''}" class="p-stack-sm rounded-lg border border-outline-variant ${openBtnClass} transition-all active:scale-95 flex items-center justify-center" title="Open folder">
                     <span class="material-symbols-outlined text-base">folder</span>
                 </button>
                 <button onclick="deleteHistoryItem('${item.id}', ${item.file_exists})" class="p-stack-sm rounded-lg text-on-surface-variant hover:bg-error-container hover:text-on-error-container transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center" title="Delete record">
@@ -677,6 +694,20 @@ function renderHistoryList(historyList) {
 
         container.appendChild(row);
     });
+}
+
+// Browser File Download Trigger
+function triggerBrowserFileDownload(url, filename) {
+    try {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename || '';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    } catch (e) {
+        console.error("Auto-download error:", e);
+    }
 }
 
 // Delete History item
@@ -706,9 +737,14 @@ async function openDownloadsFolder() {
     try {
         const res = await fetch('/api/open-folder', { method: 'POST' });
         if (res.ok) {
-            showToast("Downloads folder opened", "success");
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message || "Downloads folder opened", "success");
+            } else {
+                showToast(data.message || "Folder opening only supported in local mode. Click 'Save File' to download.", "info");
+            }
         } else {
-            throw new Error();
+            showToast("Folder opening is only supported in local desktop mode. Click 'Save File' to download.", "info");
         }
     } catch (err) {
         showToast("Could not open downloads directory", "error");
