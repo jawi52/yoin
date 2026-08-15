@@ -36,8 +36,7 @@ class DownloadManager:
             'remote_components': ['ejs:github'],
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios'],
-                    'player_skip': ['webpage', 'configs'],
+                    'player_client': ['android', 'web_embedded', 'web'],
                 }
             },
             'http_headers': {
@@ -68,7 +67,7 @@ class DownloadManager:
         return opts
 
     def fetch_info(self, url: str) -> Dict[str, Any]:
-        """Extracts info from the URL without downloading with robust fallback strategies."""
+        """Extracts info from the URL with full HD resolutions and automatic cloud datacenter fallback."""
         ydl_opts = self._get_common_ydl_opts()
         ydl_opts.update({
             'extract_flat': 'in_playlist',  # Faster playlist loading
@@ -78,19 +77,20 @@ class DownloadManager:
         info = None
         last_err = None
 
-        # Strategy 1: Primary cloud-safe Android/iOS direct API extraction
+        # Strategy 1: Full quality extraction (4K, 1440p, 1080p, 720p, etc.)
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
         except Exception as e:
             last_err = e
 
-        # Strategy 2: Fallback to web_embedded & mweb if first attempt yielded no formats or failed
+        # Strategy 2: Cloud datacenter fallback if bot challenge or error occurred
         if not info or not info.get('formats'):
             fallback_opts = dict(ydl_opts)
             fallback_opts['extractor_args'] = {
                 'youtube': {
-                    'player_client': ['android', 'web_embedded', 'mweb'],
+                    'player_client': ['android', 'ios'],
+                    'player_skip': ['webpage', 'configs'],
                 }
             }
             try:
@@ -403,11 +403,12 @@ class DownloadManager:
             except Exception as dl_err:
                 if task.stop_event.is_set():
                     return
-                # Fallback to web_embedded player client
+                # Fallback to cloud direct API
                 fallback_opts = dict(ydl_opts)
                 fallback_opts['extractor_args'] = {
                     'youtube': {
-                        'player_client': ['android', 'web_embedded', 'mweb'],
+                        'player_client': ['android', 'ios'],
+                        'player_skip': ['webpage', 'configs'],
                     }
                 }
                 with yt_dlp.YoutubeDL(fallback_opts) as ydl:
