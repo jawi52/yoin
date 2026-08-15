@@ -36,7 +36,8 @@ class DownloadManager:
             'remote_components': ['ejs:github'],
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web_embedded'],
+                    'player_client': ['android', 'ios'],
+                    'player_skip': ['webpage', 'configs'],
                 }
             },
             'http_headers': {
@@ -67,18 +68,40 @@ class DownloadManager:
         return opts
 
     def fetch_info(self, url: str) -> Dict[str, Any]:
-        """Extracts info from the URL without downloading."""
+        """Extracts info from the URL without downloading with robust fallback strategies."""
         ydl_opts = self._get_common_ydl_opts()
         ydl_opts.update({
             'extract_flat': 'in_playlist',  # Faster playlist loading
             'skip_download': True,
         })
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            try:
+        info = None
+        last_err = None
+
+        # Strategy 1: Primary cloud-safe Android/iOS direct API extraction
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
+        except Exception as e:
+            last_err = e
+
+        # Strategy 2: Fallback to web_embedded & mweb if first attempt yielded no formats or failed
+        if not info or not info.get('formats'):
+            fallback_opts = dict(ydl_opts)
+            fallback_opts['extractor_args'] = {
+                'youtube': {
+                    'player_client': ['android', 'web_embedded', 'mweb'],
+                }
+            }
+            try:
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
             except Exception as e:
-                raise ValueError(f"Failed to fetch video information: {str(e)}")
+                if not info:
+                    last_err = e
+
+        if not info:
+            raise ValueError(f"Failed to fetch video information: {str(last_err)}")
 
         if not info:
             raise ValueError("No video information found.")
@@ -373,9 +396,22 @@ class DownloadManager:
                 })
 
         try:
-            # Run the download
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(task.url, download=True)
+            # Run the download with primary options
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(task.url, download=True)
+            except Exception as dl_err:
+                if task.stop_event.is_set():
+                    return
+                # Fallback to web_embedded player client
+                fallback_opts = dict(ydl_opts)
+                fallback_opts['extractor_args'] = {
+                    'youtube': {
+                        'player_client': ['android', 'web_embedded', 'mweb'],
+                    }
+                }
+                with yt_dlp.YoutubeDL(fallback_opts) as ydl:
+                    info = ydl.extract_info(task.url, download=True)
                 
             # If the task was cancelled mid-download
             if task.stop_event.is_set():
